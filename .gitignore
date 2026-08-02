@@ -4,7 +4,6 @@ token.pickle
 stocks.db
 *.db
 
-
 # Log files
 *.log
 download_log.txt
@@ -33,8 +32,11 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Downloaded files
+# Data directories
 daily_price_lists/
+data/raw/
+data/processed/stocks.db
+data/**/*.db
 
 # Temporary files
 *.tmp

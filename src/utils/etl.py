@@ -3,7 +3,7 @@
 Stock Price ETL Pipeline
 ========================
 Extracts daily stock price listings from Nigerian Exchange PDFs.
-Supports parsing in-memory raw PDF bytes directly into an SQLite database (stocks.db),
+Supports parsing in-memory raw PDF bytes directly into an SQLite database,
 avoiding any local file writes.
 """
 
@@ -15,12 +15,15 @@ import logging
 from datetime import datetime
 from pypdf import PdfReader
 
-DB_FILE = 'stocks.db'
+DB_FILE = os.path.join('data', 'processed', 'stocks.db')
 
 def init_db():
     """
     Initialize SQLite database and schema.
     """
+    # Ensure data directory exists
+    os.makedirs(os.path.dirname(DB_FILE), exist_ok=True)
+    
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
@@ -89,7 +92,7 @@ def parse_pdf_date(filename):
             
     # Fallback to file modification date or current date
     try:
-        stat = os.stat(os.path.join('daily_price_lists', filename))
+        stat = os.stat(os.path.join('data', 'raw', filename))
         return datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d")
     except Exception:
         return datetime.now().strftime("%Y-%m-%d")
@@ -269,7 +272,7 @@ def seed_mock_data():
     conn.close()
     logging.info("ETL: Seeded mock database data successfully.")
 
-def run_etl(save_dir='daily_price_lists'):
+def run_etl(save_dir=os.path.join('data', 'raw')):
     """
     Scans save_dir for PDF files, reads them into memory, and loads them.
     (Left as a fallback tool in case PDFs are placed manually in the directory).

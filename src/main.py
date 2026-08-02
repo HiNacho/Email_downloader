@@ -18,9 +18,9 @@ import urllib.parse
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-# Import core logic and ETL
-import email_automate
-import etl
+# Import package modules
+from utils import email_automate
+from utils import etl
 
 PORT = 8080
 is_sync_running = False
@@ -155,7 +155,11 @@ class WebUIRequestHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-Type', 'text/html; charset=utf-8')
             self.end_headers()
-            with open('index.html', 'r', encoding='utf-8') as f:
+            
+            # Serve index.html from components directory
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            html_path = os.path.join(base_dir, 'components', 'index.html')
+            with open(html_path, 'r', encoding='utf-8') as f:
                 self.wfile.write(f.read().encode('utf-8'))
                 
         elif parsed_path.path == '/api/status':
@@ -290,10 +294,9 @@ class WebUIRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"status": "stop_requested"}).encode('utf-8'))
             
         elif parsed_path.path == '/api/etl/trigger':
-            # Manually trigger ETL run
+            # Manually trigger ETL run on raw PDFs directory
             try:
                 loaded = etl.run_etl(email_automate.DOWNLOAD_DIR)
-                # Seed mock data if no actual PDFs loaded, just to have data
                 if loaded == 0 and not os.path.exists(email_automate.CREDS_PATH):
                     etl.seed_mock_data()
                     loaded = "mock data seeded"

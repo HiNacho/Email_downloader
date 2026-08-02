@@ -2,7 +2,7 @@
 """
 Gmail Daily Price List Automation Script
 =======================================
-Downloads daily price list files (PDF, XLSX, XLS, CSV) from Gmail.
+Downloads daily price list files (PDF) from Gmail in-memory.
 Supports downloading actual attachments and extracting/downloading files from body links.
 Includes a mock/demo mode if API credentials are not yet set up.
 """
@@ -18,6 +18,12 @@ import argparse
 from datetime import datetime
 from urllib.parse import urlparse
 import mimetypes
+
+# Import ETL with package-aware fallback
+try:
+    from utils import etl
+except ImportError:
+    import etl
 
 # Optional imports for Gmail API
 try:
@@ -42,14 +48,14 @@ except ImportError:
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 TOKEN_PATH = 'token.pickle'
 CREDS_PATH = 'client_secret.json'
-DOWNLOAD_DIR = 'daily_price_lists'
+DOWNLOAD_DIR = os.path.join('data', 'raw')
 LOG_FILE = 'download_log.txt'
 SUBJECT_KEYWORD = "DAILY PRICE LIST"
 
 # ---------------- Helper Functions ----------------
 def ensure_dir(path):
     if not os.path.exists(path):
-        os.makedirs(path)
+        os.makedirs(path, exist_ok=True)
 
 def clean_filename(name):
     """
@@ -58,6 +64,7 @@ def clean_filename(name):
     return "".join(c if c.isalnum() or c in "._-" else "_" for c in name)
 
 def is_duplicate(filename):
+    # Duplicates are now managed via SQLite, but let's check local raw fallback folder
     return os.path.exists(os.path.join(DOWNLOAD_DIR, filename))
 
 # ---------------- Link Extraction & Downloading ----------------
@@ -69,7 +76,6 @@ def extract_links_from_body(body):
     try:
         return re.findall(url_pattern, body)
     except Exception:
-        # Fallback to simple matching if complex pattern fails
         return re.findall(r"https?://[^\s]+", body)
 
 # Known domains that never contain PDF price lists (social media, newsletter tracking)
@@ -180,56 +186,51 @@ class WebUILogHandler(logging.Handler):
         self.logs = []
         
     def emit(self, record):
-        try:
-            log_entry = self.format(record)
-            self.logs.append(log_entry)
-            # Cap at 1000 logs to avoid unbounded growth
-            if len(self.logs) > 1000:
-                self.logs.pop(0)
-        except Exception:
-            self.handleError(record)
+        log_entry = self.format(record)
+        self.logs.append(log_entry)
+        # Limit buffer to 500 lines to avoid high RAM use
+        if len(self.logs) > 500:
+            self.logs.pop(0)
 
-# Global instance for app.py to poll
 web_ui_log_handler = WebUILogHandler()
 web_ui_log_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s"))
 
-# ---------------- Email Search & Details ----------------
+# ---------------- Gmail Searching ----------------
 def search_emails(service, query_text=SUBJECT_KEYWORD, unread_only=False, start_date=None, end_date=None):
     """
-    Search Gmail inbox for emails containing query_text in subject.
-    Optionally filter by unread emails and date range.
+    Search Gmail for messages matching query criteria, date ranges, and unread toggles.
     """
-    search_query = f"subject:({query_text})"
+    # Build search query string
+    q_parts = [query_text]
     if unread_only:
-        search_query += " is:unread"
+        q_parts.append("is:unread")
         
-    if start_date:
-        search_query += f" after:{start_date.replace('-', '/')}"
-    if end_date:
-        try:
-            from datetime import timedelta
-            dt = datetime.strptime(end_date, "%Y-%m-%d")
-            exclusive_end = (dt + timedelta(days=1)).strftime("%Y/%m/%d")
-            search_query += f" before:{exclusive_end}"
-        except Exception:
-            search_query += f" before:{end_date.replace('-', '/')}"
-
-    matched_ids = []
-    page_token = None
+    if start_date or end_date:
+        # Google Gmail search API supports YYYY/MM/DD formats
+        if start_date:
+            sd_formatted = start_date.replace('-', '/')
+            q_parts.append(f"after:{sd_formatted}")
+        if end_date:
+            ed_formatted = end_date.replace('-', '/')
+            q_parts.append(f"before:{ed_formatted}")
+            
+    query = " ".join(q_parts)
+    logging.info(f"Gmail search query: '{query}'")
+    
     try:
-        while True:
-            response = service.users().messages().list(
-                userId='me',
-                q=search_query,
-                pageToken=page_token,
-                maxResults=100
-            ).execute()
-            messages = response.get('messages', [])
-            for msg in messages:
-                matched_ids.append(msg['id'])
-            page_token = response.get('nextPageToken')
-            if not page_token:
-                break
+        results = service.users().messages().list(userId='me', q=query).execute()
+        messages = results.get('messages', [])
+        
+        matched_ids = []
+        # Page listings if results are long
+        while 'nextPageToken' in results:
+            page_token = results['nextPageToken']
+            results = service.users().messages().list(userId='me', q=query, pageToken=page_token).execute()
+            messages.extend(results.get('messages', []))
+            
+        for msg in messages:
+            matched_ids.append(msg['id'])
+            
         logging.info(f"Scanned emails. Matched: {len(matched_ids)}.")
         return matched_ids
     except HttpError as error:
@@ -276,7 +277,6 @@ def process_email(service, msg_id, save_dir=None):
             if ext == '.pdf':
                 pdf_bytes = download_attachment(service, msg_id, part)
                 if pdf_bytes:
-                    import etl
                     loaded = etl.parse_and_load_in_memory(filename, pdf_bytes)
                     total_loaded_records += loaded
                     
@@ -314,7 +314,6 @@ def process_email(service, msg_id, save_dir=None):
                     else:
                         fname = clean_filename(fname)
                         
-                    import etl
                     return etl.parse_and_load_in_memory(fname, pdf_bytes)
                 return 0
                 
@@ -342,7 +341,6 @@ def run_mock_mode(save_dir, start_date=None, end_date=None):
         {"id": "mock_msg_003", "subject": "DAILY PRICE LIST - JULY 31, 2026", "date": "2026-07-31", "file": "DAILY_PRICE_LIST_JUL_31.pdf", "type": "link", "link": "https://morgancapitalgroup.com/downloads/DAILY_PRICE_LIST_JUL_31.pdf"}
     ]
     
-    # Filter mock emails by range
     filtered_emails = []
     for email in mock_emails:
         email_date = datetime.strptime(email["date"], "%Y-%m-%d")
@@ -356,99 +354,71 @@ def run_mock_mode(save_dir, start_date=None, end_date=None):
                 continue
         filtered_emails.append(email)
         
-    downloaded_files = []
     logging.info(f"Scanned emails. Matched: {len(filtered_emails)} emails.")
     
     for email in filtered_emails:
         logging.info(f"Processing email ID: {email['id']}")
-        file_path = os.path.join(save_dir, email["file"])
+        
+        import time
+        time.sleep(1.2)
         
         if email["type"] == "link":
             logging.info(f"Found links in '{email['subject']}': ['{email['link']}']")
-            if not os.path.exists(file_path):
-                with open(file_path, "wb") as f:
-                    f.write(b"%PDF-1.4\n%mock pdf data\n%%EOF")
-                logging.info(f"Downloaded PDF from link: {email['file']}")
-                downloaded_files.append(email["file"])
-            else:
-                logging.info(f"Skipped duplicate link file: {email['file']}")
+            logging.info(f"Downloaded PDF from link (in-memory): {email['file']}")
         else:
-            if not os.path.exists(file_path):
-                with open(file_path, "w") as f:
-                    f.write("Date,Item,Price\n2026-08-01,Asset A,100.5\n")
-                logging.info(f"Downloaded attachment: {email['file']}")
-                downloaded_files.append(email["file"])
-            else:
-                logging.info(f"Skipped duplicate attachment: {email['file']}")
-                
-    return downloaded_files
+            logging.info(f"Downloaded attachment (in-memory): {email['file']}")
+            
+    etl.seed_mock_data()
 
-# ---------------- Main Orchestration ----------------
+# ---------------- CLI Execution Entry ----------------
 def main():
     parser = argparse.ArgumentParser(description="Gmail Daily Price List Downloader")
-    parser.add_argument("--mock", action="store_true", help="Run in mock/demo mode")
-    parser.add_argument("--unread-only", action="store_true", help="Only process unread emails")
-    parser.add_argument("--start-date", help="Start date (YYYY-MM-DD) for search query range")
-    parser.add_argument("--end-date", help="End date (YYYY-MM-DD) for search query range")
+    parser.add_argument("--mock", action="store_true", help="Run in mock/demo mode without Gmail API")
+    parser.add_argument("--keyword", default=SUBJECT_KEYWORD, help="Keyword filter for email subject")
+    parser.add_argument("--start-date", help="Start date filter (YYYY-MM-DD)")
+    parser.add_argument("--end-date", help="End date filter (YYYY-MM-DD)")
+    parser.add_argument("--unread", action="store_true", help="Scan unread emails only")
     args = parser.parse_args()
     
-    ensure_dir(DOWNLOAD_DIR)
+    # Setup standard logger
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s: %(message)s",
+        handlers=[
+            logging.FileHandler(LOG_FILE),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
     
-    # Configure logging
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
+    save_dir = DOWNLOAD_DIR
+    ensure_dir(save_dir)
     
-    # Avoid duplicate handlers if script is re-imported
-    if not root_logger.handlers:
-        fh = logging.FileHandler(LOG_FILE)
-        fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s"))
-        root_logger.addHandler(fh)
-        
-        sh = logging.StreamHandler(sys.stdout)
-        sh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s"))
-        root_logger.addHandler(sh)
-        
-        root_logger.addHandler(web_ui_log_handler)
-    else:
-        if not any(isinstance(h, WebUILogHandler) for h in root_logger.handlers):
-            root_logger.addHandler(web_ui_log_handler)
-            
-    use_mock = args.mock
-    if not use_mock and not os.path.exists(CREDS_PATH):
-        logging.warning(f"'{CREDS_PATH}' not found in the current directory.")
-        logging.warning("Falling back to Mock/Demo Mode. To connect to a real Gmail account, please provide client_secret.json.")
-        use_mock = True
-        
-    if use_mock:
-        downloaded = run_mock_mode(DOWNLOAD_DIR, args.start_date, args.end_date)
+    if args.mock:
+        run_mock_mode(save_dir, args.start_date, args.end_date)
     else:
         if not GMAIL_API_AVAILABLE:
-            logging.error("Google Client API modules are not available. Cannot connect to Gmail.")
-            sys.exit(1)
+            logging.error("Gmail client libraries are missing. Install dependencies or run with --mock.")
+            return
+            
         try:
             logging.info("Authenticating with Gmail API...")
             service = authenticate_gmail()
-            logging.info("Searching for matching emails...")
-            msg_ids = search_emails(service, query_text=SUBJECT_KEYWORD, unread_only=args.unread_only, start_date=args.start_date, end_date=args.end_date)
             
-            downloaded = []
+            logging.info(f"Scanning mailbox for keyword: '{args.keyword}'")
+            msg_ids = search_emails(
+                service, query_text=args.keyword, unread_only=args.unread,
+                start_date=args.start_date, end_date=args.end_date
+            )
+            
+            total_loaded = 0
             for msg_id in msg_ids:
                 logging.info(f"Processing email ID: {msg_id}")
-                downloaded_files = process_email(service, msg_id, DOWNLOAD_DIR)
-                if downloaded_files:
-                    downloaded.extend(downloaded_files)
+                total_loaded += process_email(service, msg_id, save_dir)
+                
+            logging.info(f"ETL: Successfully parsed and loaded {total_loaded} stock records directly to database.")
+            logging.info("Process finished successfully.")
         except Exception as e:
-            logging.error(f"An error occurred: {e}")
-            sys.exit(1)
-            
-    if downloaded:
-        print("\n=== Download Summary ===")
-        print(f"Successfully processed and downloaded {len(downloaded)} files:")
-        for filename in downloaded:
-            print(f" - {filename}")
-    else:
-        print("\n=== Download Summary ===")
-        print("No new files were downloaded.")
+            logging.error(f"Execution failed: {e}")
 
 if __name__ == '__main__':
     main()

@@ -1,0 +1,41 @@
+# Credentials (never commit)
+client_secret.json
+token.pickle
+stocks.db
+*.db
+
+
+# Log files
+*.log
+download_log.txt
+morgancapital_download.log
+
+# Virtual environment
+.venv/
+venv/
+env/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Downloaded files
+daily_price_lists/
+
+# Temporary files
+*.tmp
+*.temp

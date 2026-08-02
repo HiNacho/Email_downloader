@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gmail Price List Downloader & Query Tool</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #0B0F17;
+            --bg-surface: rgba(22, 28, 45, 0.45);
+            --bg-card: rgba(30, 41, 59, 0.7);
+            --border-glow: rgba(99, 102, 241, 0.15);
+            --border-glow-focus: rgba(99, 102, 241, 0.4);
+            
+            --primary: #6366F1;
+            --primary-glow: rgba(99, 102, 241, 0.5);
+            --primary-hover: #4F46E5;
+            
+            --success: #10B981;
+            --success-glow: rgba(16, 185, 129, 0.2);
+            --warning: #F59E0B;
+            --warning-glow: rgba(245, 158, 11, 0.2);
+            --danger: #EF4444;
+            --danger-glow: rgba(239, 68, 68, 0.2);
+            
+            --text-primary: #F8FAFC;
+            --text-secondary: #94A3B8;
+            --text-muted: #64748B;
+            
+            --blur: 16px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.1) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 40%);
+        }
+
+        header {
+            padding: 2rem 2rem 1.5rem;
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .header-title h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.8rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #F8FAFC 0%, #94A3B8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+
+        .header-title p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        .status-badge-container {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .status-pill {
+            background: var(--bg-surface);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 0.4rem 0.8rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .status-pill .indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-pill.active .indicator {
+            background-color: var(--success);
+            box-shadow: 0 0 8px var(--success);
+        }
+
+        .status-pill.inactive .indicator {
+            background-color: var(--danger);
+            box-shadow: 0 0 8px var(--danger);
+        }
+
+        main {
+            flex: 1;
+            padding: 1.5rem 2rem;
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 1024px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(var(--blur));
+            -webkit-backdrop-filter: blur(var(--blur));
+            border: 1px solid var(--border-glow);
+            border-radius: 16px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            border-color: rgba(99, 102, 241, 0.25);
+            box-shadow: 0 10px 40px rgba(99, 102, 241, 0.05);
+        }
+
+        .card-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 550;
+            color: var(--text-primary);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 0.75rem;
+            margin-bottom: 0.25rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        input[type="text"], input[type="date"], select {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 0.65rem 0.8rem;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            outline: none;
+            width: 100%;
+        }
+
+        input[type="text"]:focus, input[type="date"]:focus, select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+            background: rgba(15, 23, 42, 0.8);
+        }
+
+        select option {
+            background: var(--bg-base);
+            color: var(--text-primary);
+        }
+
+        .date-range {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+
+        .toggle-group {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.1);
+            transition: .3s;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--primary);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+
+        .btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.8rem 1.5rem;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            box-shadow: 0 4px 12px var(--primary-glow);
+        }
+
+        .btn:hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px var(--primary-glow);
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        .btn-secondary {
+            background: var(--success);
+            box-shadow: 0 4px 12px var(--success-glow);
+        }
+
+        .btn-secondary:hover {
+            background: #059669;
+            box-shadow: 0 6px 16px var(--success-glow);
+        }
+
+        .btn-neutral {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-primary);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: none;
+        }
+
+        .btn-neutral:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .btn-stop {
+            background: var(--danger);
+            box-shadow: 0 4px 12px var(--danger-glow);
+        }
+
+        .btn-stop:hover {
+            background: #DC2626;
+            box-shadow: 0 6px 16px var(--danger-glow);
+        }
+
+        .btn:disabled {
+            background: var(--text-muted);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .log-container {
+            display: flex;
+            flex-direction: column;
+            height: 480px;
+        }
+
+        .console {
+            flex: 1;
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 1rem;
+            font-family: 'Space Grotesk', monospace;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            scroll-behavior: smooth;
+        }
+
+        .log-line {
+            word-break: break-all;
+            white-space: pre-wrap;
+        }
+
+        .log-line.info { color: #E2E8F0; }
+        .log-line.warning { color: #F59E0B; }
+        .log-line.error { color: #EF4444; }
+        .log-line.success { color: #10B981; }
+
+        .dashboard-layout {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+
+
+        .query-section {
+            grid-column: 1 / -1;
+        }
+
+        .query-controls {
+            display: grid;
+            grid-template-columns: 2fr 2fr 2fr 1fr 1fr;
+            gap: 0.75rem;
+            align-items: flex-end;
+        }
+
+        @media (max-width: 900px) {
+            .query-controls {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .files-table-container {
+            overflow-x: auto;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            background: rgba(15, 23, 42, 0.3);
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+
+        th {
+            background: rgba(15, 23, 42, 0.6);
+            color: var(--text-secondary);
+            font-weight: 500;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            color: var(--text-primary);
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .file-icon {
+            margin-right: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .file-name {
+            display: flex;
+            align-items: center;
+            font-weight: 500;
+        }
+
+        .file-size {
+            color: var(--text-secondary);
+        }
+
+        .file-date {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .empty-files {
+            padding: 2.5rem;
+            text-align: center;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        .btn-icon {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 0.25rem;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .btn-icon:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .spin {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-title">
+            <h1>Email Downloader</h1>
+            <p>Automated Price List ETL System</p>
+        </div>
+        <div class="status-badge-container">
+            <div id="badge-creds" class="status-pill inactive">
+                <span class="indicator"></span> Credentials (client_secret.json)
+            </div>
+            <div id="badge-token" class="status-pill inactive">
+                <span class="indicator"></span> Logged In (token.pickle)
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <!-- Sidebar controls -->
+        <section class="dashboard-layout">
+            <div class="card">
+                <div class="card-title">Configuration</div>
+                
+                <div class="form-group">
+                    <label for="input-keyword">Subject Keyword</label>
+                    <input type="text" id="input-keyword" value="DAILY PRICE LIST" placeholder="Filter emails by subject">
+                </div>
+
+                <div class="form-group">
+                    <label>Email Search Date Range (Optional)</label>
+                    <div class="date-range">
+                        <input type="date" id="input-start-date" title="Start Date">
+                        <input type="date" id="input-end-date" title="End Date">
+                    </div>
+                </div>
+
+                <div class="toggle-group">
+                    <label for="switch-unread">Unread Emails Only</label>
+                    <label class="switch">
+                        <input type="checkbox" id="switch-unread">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="toggle-group">
+                    <label for="switch-mock">Force Mock / Demo Mode</label>
+                    <label class="switch">
+                        <input type="checkbox" id="switch-mock">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <button id="btn-sync" class="btn">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                    <span>Start Sync</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Right Console Logs -->
+        <section class="card log-container">
+            <div class="card-title">
+                <span>Activity Log</span>
+                <button id="btn-clear-logs" class="btn-icon" title="Clear logs">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                </button>
+            </div>
+            <div id="console-output" class="console">
+                <div class="log-line info">Console ready. Click "Start Sync" to begin.</div>
+            </div>
+        </section>
+
+        <!-- Database Query Explorer -->
+        <section class="card query-section">
+            <div class="card-title">
+                <span>Stock Database Explorer</span>
+                <button id="btn-trigger-etl" class="btn btn-neutral" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;" title="Extract prices from downloaded PDFs">
+                    Extract local PDFs to Database
+                </button>
+            </div>
+            
+            <div class="query-controls">
+                <div class="form-group">
+                    <label for="query-symbol">Select Company</label>
+                    <select id="query-symbol">
+                        <option value="">-- All Companies --</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="query-start-date">Start Date</label>
+                    <input type="date" id="query-start-date">
+                </div>
+                
+                <div class="form-group">
+                    <label for="query-end-date">End Date</label>
+                    <input type="date" id="query-end-date">
+                </div>
+                
+                <button id="btn-query" class="btn">
+                    <span>Search</span>
+                </button>
+                
+                <button id="btn-export-csv" class="btn btn-secondary" disabled>
+                    <span>CSV</span>
+                </button>
+            </div>
+
+            <div class="files-table-container">
+                <table id="query-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Symbol</th>
+                            <th>Prev Close</th>
+                            <th>Open</th>
+                            <th>High</th>
+                            <th>Low</th>
+                            <th>Close</th>
+                            <th>Change (%)</th>
+                            <th>Deals</th>
+                            <th>Volume</th>
+                        </tr>
+                    </thead>
+                    <tbody id="query-tbody">
+                        <tr>
+                            <td colspan="10" class="empty-files">Select filters and click "Search" to view database records.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        const btnSync = document.getElementById('btn-sync');
+        const btnClearLogs = document.getElementById('btn-clear-logs');
+        const btnTriggerEtl = document.getElementById('btn-trigger-etl');
+        const btnQuery = document.getElementById('btn-query');
+        const btnExportCsv = document.getElementById('btn-export-csv');
+        
+        const consoleOutput = document.getElementById('console-output');
+        const queryTbody = document.getElementById('query-tbody');
+        const querySymbolSelect = document.getElementById('query-symbol');
+        
+        const inputKeyword = document.getElementById('input-keyword');
+        const inputStartDate = document.getElementById('input-start-date');
+        const inputEndDate = document.getElementById('input-end-date');
+        const switchUnread = document.getElementById('switch-unread');
+        const switchMock = document.getElementById('switch-mock');
+        
+        const queryStartDate = document.getElementById('query-start-date');
+        const queryEndDate = document.getElementById('query-end-date');
+        
+        const badgeCreds = document.getElementById('badge-creds');
+        const badgeToken = document.getElementById('badge-token');
+
+        let isRunning = false;
+        let pollInterval = null;
+        let queriedStocks = []; // Holds data for CSV downloads
+
+        // Fetch overall status (credentials, login, current execution state)
+        async function checkStatus() {
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+                
+                // Update credentials badge
+                if (data.creds_exist) {
+                    badgeCreds.className = 'status-pill active';
+                } else {
+                    badgeCreds.className = 'status-pill inactive';
+                }
+
+                // Update token/login badge
+                if (data.token_exist) {
+                    badgeToken.className = 'status-pill active';
+                } else {
+                    badgeToken.className = 'status-pill inactive';
+                }
+
+                // If backend state shifted, update button
+                const currentlyRunning = data.state === 'running';
+                if (currentlyRunning !== isRunning) {
+                    updateUIState(currentlyRunning);
+                    if (!currentlyRunning) {
+                        // Just stopped - refresh stock options
+                        loadStockSymbols();
+                    }
+                }
+                
+                // Fetch logs
+                if (data.logs && data.logs.length > 0) {
+                    appendLogs(data.logs);
+                }
+            } catch (err) {
+                console.error("Error fetching status:", err);
+            }
+        }
+
+        function updateUIState(running) {
+            isRunning = running;
+            if (running) {
+                btnSync.classList.add('btn-stop');
+                btnSync.querySelector('span').textContent = 'Stop Sync';
+                btnSync.querySelector('svg').classList.add('spin');
+            } else {
+                btnSync.classList.remove('btn-stop');
+                btnSync.querySelector('span').textContent = 'Start Sync';
+                btnSync.querySelector('svg').classList.remove('spin');
+            }
+        }
+
+        function appendLogs(logs) {
+            logs.forEach(log => {
+                const line = document.createElement('div');
+                line.classList.add('log-line');
+                
+                // Color coloring classes
+                if (log.includes(' ERROR:')) {
+                    line.classList.add('error');
+                } else if (log.includes(' WARNING:')) {
+                    line.classList.add('warning');
+                } else if (log.includes('Downloaded') || log.includes('Success') || log.includes('Loaded')) {
+                    line.classList.add('success');
+                } else {
+                    line.classList.add('info');
+                }
+                
+                line.textContent = log;
+                consoleOutput.appendChild(line);
+            });
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+
+        // Populate stock selector select dropdown
+        async function loadStockSymbols() {
+            try {
+                const res = await fetch('/api/stocks');
+                const symbols = await res.json();
+                
+                // Keep selected value if exists
+                const currentVal = querySymbolSelect.value;
+                querySymbolSelect.innerHTML = '<option value="">-- All Companies --</option>';
+                
+                symbols.forEach(sym => {
+                    const opt = document.createElement('option');
+                    opt.value = sym;
+                    opt.textContent = sym;
+                    querySymbolSelect.appendChild(opt);
+                });
+                
+                if (currentVal && symbols.includes(currentVal)) {
+                    querySymbolSelect.value = currentVal;
+                }
+            } catch (err) {
+                console.error("Error loading symbols list:", err);
+            }
+        }
+
+        // Search stock prices database
+        async function queryDatabase() {
+            const sym = querySymbolSelect.value;
+            const sDate = queryStartDate.value;
+            const eDate = queryEndDate.value;
+            
+            queryTbody.innerHTML = '<tr><td colspan="10" class="empty-files">Querying database...</td></tr>';
+            
+            try {
+                const url = `/api/query?symbol=${sym}&startDate=${sDate}&endDate=${eDate}`;
+                const res = await fetch(url);
+                queriedStocks = await res.json();
+                
+                queryTbody.innerHTML = '';
+                
+                if (queriedStocks.length === 0) {
+                    queryTbody.innerHTML = '<tr><td colspan="10" class="empty-files">No matching data records found. Make sure to run sync or trigger PDF extraction first.</td></tr>';
+                    btnExportCsv.disabled = true;
+                    return;
+                }
+                
+                btnExportCsv.disabled = false;
+                
+                queriedStocks.forEach(row => {
+                    const tr = document.createElement('tr');
+                    
+                    let changeStyle = '';
+                    let plus = '';
+                    if (row.change > 0) {
+                        changeStyle = 'style="color: var(--success); font-weight: 500"';
+                        plus = '+';
+                    } else if (row.change < 0) {
+                        changeStyle = 'style="color: var(--danger); font-weight: 500"';
+                    }
+                    
+                    tr.innerHTML = `
+                        <td class="file-date">${row.date}</td>
+                        <td><strong>${row.symbol}</strong></td>
+                        <td>${row.p_close.toFixed(2)}</td>
+                        <td>${row.open.toFixed(2)}</td>
+                        <td>${row.high.toFixed(2)}</td>
+                        <td>${row.low.toFixed(2)}</td>
+                        <td style="font-weight: 600">${row.close.toFixed(2)}</td>
+                        <td ${changeStyle}>${plus}${row.change.toFixed(2)} (${row.pct_change.toFixed(2)}%)</td>
+                        <td>${row.deals.toLocaleString()}</td>
+                        <td>${row.volume.toLocaleString()}</td>
+                    `;
+                    queryTbody.appendChild(tr);
+                });
+            } catch (err) {
+                console.error("Failed to query DB:", err);
+                queryTbody.innerHTML = '<tr><td colspan="10" class="empty-files" style="color: var(--danger)">Failed to perform query.</td></tr>';
+            }
+        }
+
+        // Export queried rows to CSV file download
+        function exportToCSV() {
+            if (queriedStocks.length === 0) return;
+            
+            const headers = ['Date', 'Symbol', 'Prev Close', 'Open', 'High', 'Low', 'Close', 'Change', 'Pct Change', 'Deals', 'Volume', 'Value', 'VWAP'];
+            let csv = headers.join(',') + '\n';
+            
+            queriedStocks.forEach(row => {
+                const line = [
+                    row.date,
+                    row.symbol,
+                    row.p_close,
+                    row.open,
+                    row.high,
+                    row.low,
+                    row.close,
+                    row.change,
+                    row.pct_change,
+                    row.deals,
+                    row.volume,
+                    row.value,
+                    row.vwap
+                ];
+                csv += line.join(',') + '\n';
+            });
+            
+            // Create BLOB and link
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            
+            const sym = querySymbolSelect.value || 'ALL';
+            link.setAttribute("download", `price_export_${sym}_${new Date().toISOString().slice(0, 10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Trigger manual ETL PDF parser execution
+        async function triggerETL() {
+            btnTriggerEtl.disabled = true;
+            btnTriggerEtl.textContent = 'Extracting data...';
+            
+            try {
+                const res = await fetch('/api/etl/trigger', { method: 'POST' });
+                const result = await res.json();
+                
+                if (result.status === 'completed') {
+                    // Update log window
+                    appendLogs([`[UI] Manual ETL finished successfully. Status: ${result.processed}`]);
+                    loadStockSymbols();
+                } else {
+                    appendLogs([`[UI] Manual ETL extraction encountered an error.`]);
+                }
+            } catch (err) {
+                console.error("Manual ETL trigger fail:", err);
+                appendLogs([`[UI] Connection error. Failed to run local PDF extraction.`]);
+            } finally {
+                btnTriggerEtl.disabled = false;
+                btnTriggerEtl.textContent = 'Extract local PDFs to Database';
+            }
+        }
+
+        // Trigger Sync Start/Stop
+        btnSync.addEventListener('click', async () => {
+            if (isRunning) {
+                try {
+                    await fetch('/api/stop', { method: 'POST' });
+                    appendLogs(["[UI] Sent cancellation request..."]);
+                } catch (err) {
+                    console.error("Failed to stop:", err);
+                }
+            } else {
+                const params = {
+                    keyword: inputKeyword.value,
+                    startDate: inputStartDate.value,
+                    endDate: inputEndDate.value,
+                    unreadOnly: switchUnread.checked,
+                    forceMock: switchMock.checked
+                };
+
+                try {
+                    consoleOutput.innerHTML = ''; // clear console on new run
+                    const line = document.createElement('div');
+                    line.className = 'log-line info';
+                    line.textContent = `[UI] Initiating download process (Keyword: "${params.keyword}")...`;
+                    consoleOutput.appendChild(line);
+                    
+                    const res = await fetch('/api/run', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(params)
+                    });
+                    const result = await res.json();
+                    if (result.status === 'started') {
+                        updateUIState(true);
+                    } else {
+                        appendLogs([`[UI] Error: ${result.message}`]);
+                    }
+                } catch (err) {
+                    console.error("Failed to start:", err);
+                    appendLogs([`[UI] Connection error. Failed to start sync.`]);
+                }
+            }
+        });
+
+        btnClearLogs.addEventListener('click', () => {
+            consoleOutput.innerHTML = '<div class="log-line info">Console cleared.</div>';
+        });
+
+        btnTriggerEtl.addEventListener('click', triggerETL);
+        btnQuery.addEventListener('click', queryDatabase);
+        btnExportCsv.addEventListener('click', exportToCSV);
+
+        // Initialize polling
+        pollInterval = setInterval(checkStatus, 1000);
+        
+        // Initial load
+        checkStatus();
+        loadStockSymbols();
+    </script>
+</body>
+</html>

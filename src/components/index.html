@@ -625,10 +625,15 @@
         let pollInterval = null;
         let queriedStocks = []; // Holds data for CSV downloads
 
+        // Dynamic backend link for unified vs. split (Vercel + Railway) hosting model
+        const BACKEND_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? ''
+            : localStorage.getItem('BACKEND_URL') || '';
+
         // Fetch overall status (credentials, login, current execution state)
         async function checkStatus() {
             try {
-                const res = await fetch('/api/status');
+                const res = await fetch(BACKEND_URL + '/api/status');
                 const data = await res.json();
                 
                 // Update credentials badge
@@ -702,7 +707,7 @@
         // Populate stock selector select dropdown
         async function loadStockSymbols() {
             try {
-                const res = await fetch('/api/stocks');
+                const res = await fetch(BACKEND_URL + '/api/stocks');
                 const symbols = await res.json();
                 
                 // Keep selected value if exists
@@ -733,7 +738,7 @@
             queryTbody.innerHTML = '<tr><td colspan="10" class="empty-files">Querying database...</td></tr>';
             
             try {
-                const url = `/api/query?symbol=${sym}&startDate=${sDate}&endDate=${eDate}`;
+                const url = BACKEND_URL + `/api/query?symbol=${sym}&startDate=${sDate}&endDate=${eDate}`;
                 const res = await fetch(url);
                 queriedStocks = await res.json();
                 
@@ -824,7 +829,7 @@
             btnTriggerEtl.textContent = 'Extracting data...';
             
             try {
-                const res = await fetch('/api/etl/trigger', { method: 'POST' });
+                const res = await fetch(BACKEND_URL + '/api/etl/trigger', { method: 'POST' });
                 const result = await res.json();
                 
                 if (result.status === 'completed') {
@@ -847,7 +852,7 @@
         btnSync.addEventListener('click', async () => {
             if (isRunning) {
                 try {
-                    await fetch('/api/stop', { method: 'POST' });
+                    await fetch(BACKEND_URL + '/api/stop', { method: 'POST' });
                     appendLogs(["[UI] Sent cancellation request..."]);
                 } catch (err) {
                     console.error("Failed to stop:", err);
@@ -868,7 +873,7 @@
                     line.textContent = `[UI] Initiating download process (Keyword: "${params.keyword}")...`;
                     consoleOutput.appendChild(line);
                     
-                    const res = await fetch('/api/run', {
+                    const res = await fetch(BACKEND_URL + '/api/run', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(params)

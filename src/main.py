@@ -147,6 +147,16 @@ class WebUIRequestHandler(BaseHTTPRequestHandler):
         # Suppress logging internal HTTP requests to stdout
         pass
 
+    def end_headers(self):
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+        super().end_headers()
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.end_headers()
+
     def do_GET(self):
         global is_sync_running
         parsed_path = urllib.parse.urlparse(self.path)
